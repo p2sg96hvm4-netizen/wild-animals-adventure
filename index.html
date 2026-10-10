@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>WILD SQUAD — 3D Animal Survival</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101a16;font-family:system-ui,-apple-system,sans-serif;touch-action:none}
+#game{position:fixed;inset:0}
+#hud{position:fixed;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;gap:8px;pointer-events:none;color:white;text-shadow:0 2px 4px #000;font-weight:700}
+.pill{background:#10231dcc;border:1px solid #ffffff35;border-radius:14px;padding:9px 12px;font-size:13px}
+#help{position:fixed;top:58px;left:10px;color:white;background:#10231dbb;border-radius:10px;padding:8px 10px;font-size:12px;max-width:210px}
+#controls{position:fixed;left:0;right:0;bottom:18px;display:flex;justify-content:space-between;align-items:end;padding:0 18px;gap:14px}
+.pad{display:grid;grid-template-columns:52px 52px 52px;grid-template-rows:52px 52px 52px;gap:5px}
+button{border:1px solid #ffffff66;background:#152b25d9;color:white;border-radius:15px;font-size:19px;font-weight:800;min-width:52px;min-height:52px;touch-action:none;box-shadow:0 3px 8px #0005}
+button:active{background:#477a55}
+.blank{visibility:hidden}
+.actions{display:flex;flex-direction:column;gap:8px}
+.actions button{min-width:74px;min-height:56px;font-size:13px}
+#toast{position:fixed;left:50%;top:46%;transform:translate(-50%,-50%);color:white;font-weight:800;text-align:center;text-shadow:0 3px 5px black;background:#10231dbb;padding:12px 18px;border-radius:12px;display:none}
+#err{position:fixed;inset:15%;display:none;background:#18231f;color:white;padding:20px;border-radius:16px;z-index:10}
+@media(min-width:800px){.pad{transform:scale(1.08);transform-origin:bottom left}}
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div id="hud"><div class="pill">🐺 WILD SQUAD <span style="opacity:.7">• 3D DEMO</span></div><div class="pill" id="stats">Health 100 · Food 0</div></div>
+<div id="help">Explore the forest. Use the arrows to move, JUMP to hop, and ATTACK to howl-strike.</div>
+<div id="controls">
+ <div class="pad">
+  <button class="blank"></button><button data-move="forward">▲</button><button class="blank"></button>
+  <button data-move="left">◀</button><button id="stop">●</button><button data-move="right">▶</button>
+  <button class="blank"></button><button data-move="back">▼</button><button class="blank"></button>
+ </div>
+ <div class="actions"><button id="jump">JUMP</button><button id="attack">ATTACK</button></div>
+</div>
+<div id="toast"></div><div id="err"></div>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+const root=document.querySelector('#game');
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x9cc7d0); scene.fog=new THREE.Fog(0x9cc7d0,24,100);
+const camera=new THREE.PerspectiveCamera(58,innerWidth/innerHeight,.1,180);
+const renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio(Math.min(devicePixelRatio,1.7)); renderer.setSize(innerWidth,innerHeight); renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap; root.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xd8efff,0x4b5a31,2));
+const sun=new THREE.DirectionalLight(0xfff0d5,2.5); sun.position.set(-12,24,9); sun.castShadow=true; sun.shadow.mapSize.set(1024,1024); scene.add(sun);
+const mat=(c,rough=.9)=>new THREE.MeshStandardMaterial({color:c,roughness:rough});
+const groundMat=mat(0x527b3d), trunkMat=mat(0x57402b), leafMats=[mat(0x1d5437),mat(0x286641),mat(0x397b45)], rockMat=mat(0x68756b);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(180,180),groundMat); ground.rotation.x=-Math.PI/2; ground.receiveShadow=true; scene.add(ground);
+const terrainLines=new THREE.GridHelper(180,45,0x557d45,0x557d45); terrainLines.position.y=.012; terrainLines.material.transparent=true; terrainLines.material.opacity=.12; scene.add(terrainLines);
+function tree(x,z,s=1){const g=new THREE.Group();const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.18*s,.28*s,2.2*s,7),trunkMat);trunk.position.y=1.1*s;trunk.castShadow=true;g.add(trunk);for(let i=0;i<3;i++){let crown=new THREE.Mesh(new THREE.ConeGeometry((1.2-i*.22)*s,1.9*s,7),leafMats[(Math.random()*leafMats.length)|0]);crown.position.y=(2.1+i*.8)*s;crown.castShadow=true;g.add(crown)}g.position.set(x,0,z);scene.add(g)}
+for(let i=0;i<100;i++){let x=(Math.random()-.5)*125,z=(Math.random()-.5)*125;if(Math.abs(x)<6&&Math.abs(z)<8)continue;tree(x,z,.65+Math.random()*.8)}
+for(let i=0;i<35;i++){const r=new THREE.Mesh(new THREE.DodecahedronGeometry(.3+Math.random()*.8,0),rockMat);r.position.set((Math.random()-.5)*90,.2,(Math.random()-.5)*90);r.scale.y=.55;r.castShadow=true;r.receiveShadow=true;scene.add(r)}
+// A stylized, assembled 3D wolf model made from meshes; this is a prototype, not a scanned or fur-detailed model.
+const wolf=new THREE.Group();scene.add(wolf);
+const fur=mat(0x686e70), darkFur=mat(0x343b40), cream=mat(0xc7bca1), eyeMat=new THREE.MeshStandardMaterial({color:0xf5c45b,roughness:.25}), noseMat=mat(0x171a19,.4);
+function ell(parent,m,pos,scale){const o=new THREE.Mesh(new THREE.SphereGeometry(1,16,12),m);o.position.set(...pos);o.scale.set(...scale);o.castShadow=true;o.receiveShadow=true;parent.add(o);return o}
+ell(wolf,fur,[0,1.05,0],[.48,.58,.95]); // torso
+ell(wolf,darkFur,[0,1.18,.52],[.43,.46,.55]); // shoulders
+ell(wolf,fur,[0,1.47,-.64],[.37,.4,.42]); // neck/head base
+ell(wolf,fur,[0,1.68,-.88],[.39,.36,.4]); // head
+ell(wolf,cream,[0,1.49,-1.23],[.25,.17,.42]); // muzzle
+ell(wolf,noseMat,[0,1.52,-1.59],[.12,.1,.13]);
+for(const side of [-1,1]){
+ const ear=new THREE.Mesh(new THREE.ConeGeometry(.14,.42,5),darkFur);ear.position.set(side*.25,2.02,-.83);ear.rotation.z=side*-.18;ear.castShadow=true;wolf.add(ear);
+ ell(wolf,eyeMat,[side*.29,1.73,-1.05],[.055,.055,.04]);
+ ell(wolf,darkFur,[side*.3,.72,-.49],[.16,.5,.17]).rotation.x=-.12;
+ ell(wolf,darkFur,[side*.3,.72,.57],[.15,.5,.16]).rotation.x=.12;
+}
+const tail=ell(wolf,darkFur,[0,1.2,1.03],[.17,.19,.55]);tail.rotation.x=-.45;
+const animals=[];
+function deer(x,z){const a=new THREE.Group();ell(a,mat(0x986d43),[0,.85,0],[.35,.45,.7]);ell(a,mat(0x986d43),[0,1.25,-.48],[.2,.35,.2]);ell(a,mat(0x986d43),[0,1.48,-.65],[.22,.22,.24]);for(let s of [-1,1]){ell(a,mat(0x986d43),[s*.16,.38,-.25],[.07,.4,.08]);ell(a,mat(0x986d43),[s*.16,.38,.35],[.07,.4,.08]);const ant=new THREE.Group();const stem=new THREE.Mesh(new THREE.CylinderGeometry(.025,.04,.45,5),mat(0x59442f));stem.position.set(s*.1,1.8,-.65);stem.rotation.z=s*.3;a.add(stem);for(let j=0;j<2;j++){const t=new THREE.Mesh(new THREE.CylinderGeometry(.018,.025,.24,5),mat(0x59442f));t.position.set(s*(.19+j*.08),1.97+j*.07,-.65);t.rotation.z=s*.8;a.add(t)}}a.position.set(x,0,z);scene.add(a);animals.push(a)}
+for(let i=0;i<7;i++)deer((Math.random()-.5)*36,(Math.random()-.5)*36);
+wolf.position.set(0,0,3);
+let health=100,food=0,vy=0,onGround=true,attackTimer=0;const keys=new Set();let moving='';
+function toast(t){const e=document.querySelector('#toast');e.textContent=t;e.style.display='block';clearTimeout(toast.timer);toast.timer=setTimeout(()=>e.style.display='none',1300)}
+document.querySelectorAll('[data-move]').forEach(b=>{const d=b.dataset.move;const down=e=>{e.preventDefault();moving=d};const up=e=>{e.preventDefault();if(moving===d)moving=''};b.addEventListener('pointerdown',down);b.addEventListener('pointerup',up);b.addEventListener('pointercancel',up);b.addEventListener('pointerleave',up)});
+document.querySelector('#stop').addEventListener('pointerdown',e=>{e.preventDefault();moving=''});
+document.querySelector('#jump').addEventListener('pointerdown',e=>{e.preventDefault();if(onGround){vy=6.8;onGround=false}});
+document.querySelector('#attack').addEventListener('pointerdown',e=>{e.preventDefault();attackTimer=.6;toast('🐺 AWOoo! Attack!');});
+addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(['arrowup','w'].includes(k))moving='forward';if(['arrowdown','s'].includes(k))moving='back';if(['arrowleft','a'].includes(k))moving='left';if(['arrowright','d'].includes(k))moving='right';if(k===' '&&onGround){vy=6.8;onGround=false}if(k==='f'){attackTimer=.6;toast('🐺 AWOoo! Attack!')}});
+addEventListener('keyup',e=>{if(['arrowup','w','arrowdown','s','arrowleft','a','arrowright','d'].includes(e.key.toLowerCase()))moving=''});
+const clock=new THREE.Clock();let step=0;
+function animate(){requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.04);step+=dt;
+let speed= moving?4.2:0;const oldx=wolf.position.x,oldz=wolf.position.z;
+if(moving==='forward')wolf.position.z-=speed*dt;if(moving==='back')wolf.position.z+=speed*dt;if(moving==='left')wolf.position.x-=speed*dt;if(moving==='right')wolf.position.x+=speed*dt;
+if(moving){if(moving==='forward')wolf.rotation.y=Math.PI;if(moving==='back')wolf.rotation.y=0;if(moving==='left')wolf.rotation.y=-Math.PI/2;if(moving==='right')wolf.rotation.y=Math.PI/2;}
+wolf.position.x=THREE.MathUtils.clamp(wolf.position.x,-70,70);wolf.position.z=THREE.MathUtils.clamp(wolf.position.z,-70,70);
+vy-=15*dt;wolf.position.y+=vy*dt;if(wolf.position.y<=0){wolf.position.y=0;vy=0;onGround=true}
+wolf.position.y+=moving&&onGround?Math.abs(Math.sin(step*11))*.035:0;
+wolf.rotation.z=attackTimer>0?Math.sin(step*35)*.08:0;attackTimer=Math.max(0,attackTimer-dt);
+const target=new THREE.Vector3(wolf.position.x,1.2+wolf.position.y,wolf.position.z);const behind=new THREE.Vector3(Math.sin(wolf.rotation.y)*6,3.6,Math.cos(wolf.rotation.y)*6);camera.position.lerp(target.clone().add(behind),.08);camera.lookAt(target);
+animals.forEach(a=>{if(a.position.distanceTo(wolf.position)<1.8&&attackTimer>0){a.position.x+=Math.random()*5-2.5;a.position.z+=Math.random()*5-2.5;food++;document.querySelector('#stats').textContent=`Health ${health} · Food ${food}`;}});
+renderer.render(scene,camera)}
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+animate();
+</script>
+</body></html>
